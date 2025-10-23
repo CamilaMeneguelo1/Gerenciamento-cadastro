@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Gerenciamento de Contatos</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; }
+  h2 { margin-top: 40px; }
+  label { display: block; margin-top: 10px; }
+  input { padding: 5px; width: 300px; }
+  button { margin-top: 10px; padding: 7px 15px; cursor: pointer; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+  th { background-color: #f2f2f2; }
+  .btn-action { cursor: pointer; color: blue; text-decoration: underline; background:none; border:none; }
+</style>
+</head>
+<body>
+
+<h1>Gerenciamento de Contatos</h1>
+
+<section id="cadastro">
+  <h2>Cadastrar Contato</h2>
+  <form id="formCadastroContato">
+    <label>Nome:</label>
+    <input type="text" id="nome" required />
+    <label>Email:</label>
+    <input type="email" id="email" required />
+    <label>Telefone:</label>
+    <input type="text" id="telefone" required />
+    <br/>
+    <button type="submit">Cadastrar</button>
+  </form>
+  <div id="msgCadastroContato"></div>
+</section>
+
+<section id="listaAtivos">
+  <h2>Contatos Ativos</h2>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Nome</th><th>Email</th><th>Telefone</th><th>Ação</th></tr>
+    </thead>
+    <tbody id="ativosBody"></tbody>
+  </table>
+</section>
+
+<section id="listaInativos">
+  <h2>Contatos Inativos</h2>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Nome</th><th>Email</th><th>Telefone</th><th>Ação</th></tr>
+    </thead>
+    <tbody id="inativosBody"></tbody>
+  </table>
+</section>
+
+<script>
+const apiBase = 'http://localhost:8000';
+
+async function carregarContatos() {
+  const ativosRes = await fetch(`${apiBase}/contatos/ativos/`);
+  const inativosRes = await fetch(`${apiBase}/contatos/inativos/`);
+  const ativos = await ativosRes.json();
+  const inativos = await inativosRes.json();
+
+  const ativosBody = document.getElementById('ativosBody');
+  const inativosBody = document.getElementById('inativosBody');
+
+  ativosBody.innerHTML = '';
+  ativos.forEach(c => {
+    ativosBody.innerHTML += `
+      <tr>
+        <td>${c.id}</td>
+        <td>${c.nome}</td>
+        <td>${c.email}</td>
+        <td>${c.telefone}</td>
+        <td><button class="btn-action" onclick="alterarStatus(${c.id})">Desativar</button></td>
+      </tr>
+    `;
+  });
+
+  inativosBody.innerHTML = '';
+  inativos.forEach(c => {
+    inativosBody.innerHTML += `
+      <tr>
+        <td>${c.id}</td>
+        <td>${c.nome}</td>
+        <td>${c.email}</td>
+        <td>${c.telefone}</td>
+        <td><button class="btn-action" onclick="alterarStatus(${c.id})">Ativar</button></td>
+      </tr>
+    `;
+  });
+}
+
+async function alterarStatus(contatoId) {
+  try {
+    const res = await fetch(`${apiBase}/contato/${contatoId}/status/`, {
+      method: 'PUT',
+    });
+    if (!res.ok) {
+      throw new Error('Erro ao alterar status do contato');
+    }
+    alert((await res.json()).message);
+    carregarContatos();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+document.getElementById('formCadastroContato').addEventListener('submit', async e => {
+  e.preventDefault();
+  const nome = document.getElementById('nome').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const telefone = document.getElementById('telefone').value.trim();
+  const msg = document.getElementById('msgCadastroContato');
+  msg.textContent = '';
+
+  try {
+    const res = await fetch(`${apiBase}/contato/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome, email, telefone }),
+    });
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.detail || 'Erro ao cadastrar contato');
+    }
+    msg.style.color = 'green';
+    msg.textContent = 'Contato cadastrado com sucesso!';
+    e.target.reset();
+    carregarContatos();
+  } catch (err) {
+    msg.style.color = 'red';
+    msg.textContent = err.message;
+  }
+});
+
+// Inicializa lista quando página carrega
+carregarContatos();
+</script>
+
+</body>
+</html>

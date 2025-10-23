@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dashboard de Relatórios</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; max-width: 1100px; }
+  h1, h2 { margin-bottom: 10px; }
+  .flex-row { display: flex; flex-wrap: wrap; gap: 30px; }
+  .box { flex: 1; min-width: 300px; background: #f9f9f9; padding: 15px; border-radius: 5px; }
+  canvas { max-width: 100%; height: 300px; }
+  table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+  th, td { border: 1px solid #ddd; padding: 8px; }
+  th { background-color: #f2f2f2; }
+</style>
+</head>
+<body>
+
+<h1>Relatório de Contatos e Tipos</h1>
+<div id="periodoRef"></div>
+
+<h2>Totais Consolidados</h2>
+<div id="totaisConsolidados"></div>
+
+<div class="flex-row">
+  <div class="box">
+    <h3>Status dos Contatos</h3>
+    <canvas id="chartStatusContatos"></canvas>
+  </div>
+  <div class="box">
+    <h3>Situação dos Tipos</h3>
+    <canvas id="chartSituacaoTipos"></canvas>
+  </div>
+</div>
+
+<div class="box" style="margin-top: 40px;">
+  <h3>Distribuição por Tipo de Contato</h3>
+  <canvas id="chartTiposContato"></canvas>
+</div>
+
+<div class="box" style="margin-top: 40px;">
+  <h3>Evolução Mensal dos Contatos</h3>
+  <canvas id="chartSerieTemporal"></canvas>
+</div>
+
+<div class="box" style="margin-top: 40px;">
+  <h3>Top Indicadores (Crescimento por Tipo)</h3>
+  <canvas id="chartTopIndicadores"></canvas>
+</div>
+
+<script>
+async function carregarRelatorio() {
+  const res = await fetch('/relatorios/dados');
+  const dados = await res.json();
+
+  // Período de referência
+  const inicio = new Date(dados.periodo.inicio);
+  const fim = new Date(dados.periodo.fim);
+  const gran = dados.periodo.granularidade;
+  document.getElementById('periodoRef').innerHTML = `<strong>Período:</strong> ${inicio.toLocaleDateString()} a ${fim.toLocaleDateString()} (Granularidade: ${gran})`;
+
+  // Totais consolidados
+  const totais = dados.totais;
+  const totaisDiv = document.getElementById('totaisConsolidados');
+  totaisDiv.innerHTML = `
+    <table>
+      <tr><th></th><th>Valor Atual</th><th>Variação %</th></tr>
+      <tr><td>Contatos</td><td>${totais.contatos.valor_atual}</td><td>${totais.contatos.variacao_percentual.toFixed(2)}%</td></tr>
+      <tr><td>Tipos</td><td>${totais.tipos.valor_atual}</td><td>${totais.tipos.variacao_percentual.toFixed(2)}%</td></tr>
+    </table>
+  `;
+
+  // Gráfico Status Contatos (pizza)
+  const ctxStatus = document.getElementById('chartStatusContatos').getContext('2d');
+  new Chart(ctxStatus, {
+    type: 'doughnut',
+    data: {
+      labels: ['Ativos', 'Inativos'],
+      datasets: [{
+        data: [dados.quebras.status_contatos.ativos, dados.quebras.status_contatos.inativos],
+        backgroundColor: ['#4caf50', '#f44336']
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom' } }
+    }
+  });
+
+  // Gráfico Situação Tipos (pizza)
+  const ctxSituacao = document.getElementById('chartSituacaoTipos').getContext('2d');
+  new Chart(ctxSituacao, {
+    type: 'doughnut',
+    data: {
+      labels: ['Ativos', 'Inativos'],
+      datasets: [{
+        data: [dados.quebras.situacao_tipos.ativos, dados.quebras.situacao_tipos.inativos],
+        backgroundColor: ['#2196f3', '#9e9e9e']
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom' } }
+    }
+  });
+
+  // Gráfico Distribuição por Tipo de Contato (barras empilhadas)
+  const tiposLabels = Object.keys(dados.quebras.tipos_contato);
+  const tiposData = Object.values(dados.quebras.tipos_contato);
+
+  const ctxTipos = document.getElementById('chartTiposContato').getContext('2d');
+  new Chart(ctxTipos, {
+    type: 'bar',
+    data: {
+      labels: tiposLabels,
+      datasets: [{
+        label: 'Quantidade',
+        data: tiposData,
+        backgroundColor: '#3f51b5'
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: { stacked: true },
+        y: { stacked: true, beginAtZero: true }
+      }
+    }
+  });
+
+  // Gráfico Série Temporal (linha)
+  const meses = dados.serie_temporal.map(m => m.mes);
+  const total = dados.serie_temporal.map(m => m.total);
+  const ativos = dados.serie_temporal.map(m => m.ativos);
+  const inativos = dados.serie_temporal.map(m => m.inativos);
+  const novos = dados.serie_temporal.map(m => m.novos);
+  const delta = dados.serie_temporal.map(m => m.delta);
+
+  const ctxSerie = document.getElementById('chartSerieTemporal').getContext('2d');
+  new Chart(ctxSerie, {
+    type: 'line',
+    data: {
+      labels: meses,
+      datasets: [
+        { label: 'Total de Contatos', data: total, borderColor: '#000', fill: false },
+        { label: 'Ativos', data: ativos, borderColor: '#4caf50', fill: false },
+        { label: 'Inativos', data: inativos, borderColor: '#f44336', fill: false },
+        { label: 'Novos Cadastros', data: novos, borderColor: '#2196f3', fill: false },
+        { label: 'Variação Mensal (%)', data: delta, borderColor: '#ff9800', fill: false, borderDash: [5,5], yAxisID: 'y1' }
+      ]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: { beginAtZero: true, position: 'left' },
+        y1: {
+          type: 'linear',
+          position: 'right',
+          beginAtZero: true,
+          grid: { drawOnChartArea: false }
+        }
+      }
+    }
+  });
+
+  // Gráfico Top Indicadores (barras horizontais)
+  const topLabels = Object.keys(dados.top_indicadores);
+  const topValues = Object.values(dados.top_indicadores);
+
+  const ctxTop = document.getElementById('chartTopIndicadores').getContext('2d');
+  new Chart(ctxTop, {
+    type: 'bar',
+    data: {
+      labels: topLabels,
+      datasets: [{
+        label: 'Crescimento (%)',
+        data: topValues,
+        backgroundColor: '#673ab7'
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      scales: {
+        x: { beginAtZero: true }
+      }
+    }
+  });
+}
+
+window.onload = carregarRelatorio;
+</script>
+
+</body>
+</html>

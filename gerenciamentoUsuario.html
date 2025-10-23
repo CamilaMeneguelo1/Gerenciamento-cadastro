@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Gerenciamento de Usuários</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; }
+  h2 { margin-top: 40px; }
+  label { display: block; margin-top: 10px; }
+  input { padding: 5px; width: 250px; }
+  button { margin-top: 10px; padding: 7px 15px; cursor: pointer; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+  th { background-color: #f2f2f2; }
+  .btn-action { cursor: pointer; color: blue; text-decoration: underline; background:none; border:none; }
+</style>
+</head>
+<body>
+
+<h1>Gerenciamento de Usuários</h1>
+
+<section id="cadastro">
+  <h2>Cadastrar Usuário</h2>
+  <form id="formCadastro">
+    <label>Nome:</label>
+    <input type="text" id="nome" required />
+    <label>Email:</label>
+    <input type="email" id="email" required />
+    <label>Senha:</label>
+    <input type="password" id="senha" required />
+    <br/>
+    <button type="submit">Cadastrar</button>
+  </form>
+  <div id="msgCadastro"></div>
+</section>
+
+<section id="listaAtivos">
+  <h2>Usuários Ativos</h2>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Nome</th><th>Email</th><th>Ação</th></tr>
+    </thead>
+    <tbody id="ativosBody"></tbody>
+  </table>
+</section>
+
+<section id="listaInativos">
+  <h2>Usuários Inativos</h2>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Nome</th><th>Email</th><th>Ação</th></tr>
+    </thead>
+    <tbody id="inativosBody"></tbody>
+  </table>
+</section>
+
+<script>
+const apiBase = 'http://localhost:8000';
+
+async function carregarUsuarios() {
+  const ativosRes = await fetch(`${apiBase}/usuarios/ativos`);
+  const inativosRes = await fetch(`${apiBase}/usuarios/inativos`);
+  const ativos = await ativosRes.json();
+  const inativos = await inativosRes.json();
+
+  const ativosBody = document.getElementById('ativosBody');
+  const inativosBody = document.getElementById('inativosBody');
+
+  ativosBody.innerHTML = '';
+  ativos.forEach(u => {
+    ativosBody.innerHTML += `
+      <tr>
+        <td>${u.id}</td>
+        <td>${u.nome}</td>
+        <td>${u.email}</td>
+        <td><button class="btn-action" onclick="alterarStatus(${u.id})">Desativar</button></td>
+      </tr>
+    `;
+  });
+
+  inativosBody.innerHTML = '';
+  inativos.forEach(u => {
+    inativosBody.innerHTML += `
+      <tr>
+        <td>${u.id}</td>
+        <td>${u.nome}</td>
+        <td>${u.email}</td>
+        <td><button class="btn-action" onclick="alterarStatus(${u.id})">Ativar</button></td>
+      </tr>
+    `;
+  });
+}
+
+async function alterarStatus(userId) {
+  try {
+    const res = await fetch(`${apiBase}/usuario/${userId}/status/`, {
+      method: 'PUT',
+    });
+    if (!res.ok) {
+      throw new Error('Erro ao alterar status do usuário');
+    }
+    alert((await res.json()).message);
+    carregarUsuarios();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+document.getElementById('formCadastro').addEventListener('submit', async e => {
+  e.preventDefault();
+  const nome = document.getElementById('nome').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const senha = document.getElementById('senha').value.trim();
+  const msg = document.getElementById('msgCadastro');
+  msg.textContent = '';
+
+  try {
+    const res = await fetch(`${apiBase}/usuario/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome, email, senha }),
+    });
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.detail || 'Erro ao cadastrar usuário');
+    }
+    msg.style.color = 'green';
+    msg.textContent = 'Usuário cadastrado com sucesso!';
+    e.target.reset();
+    carregarUsuarios();
+  } catch (err) {
+    msg.style.color = 'red';
+    msg.textContent = err.message;
+  }
+});
+
+// Inicializa lista na carga da página
+carregarUsuarios();
+</script>
+
+</body>
+</html>
